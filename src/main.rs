@@ -1,14 +1,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 //use std::sync::mpsc::{channel, sync_channel, Receiver, SyncSender};
 
 use eframe::{
     self,
-    egui::{self, CentralPanel, Color32, Context, FontData, FontDefinitions, FontFamily, Visuals,
-        ScrollArea, Ui, Separator, RichText, Label, Layout, TopBottomPanel, Button, Vec2,
+    egui::{
+        self, Button, CentralPanel, Color32, Context, FontData, FontDefinitions, FontFamily, Label,
+        Layout, RichText, ScrollArea, Separator, TopBottomPanel, Ui, Vec2, Visuals,
     }, //, Spinner},
-    App, run_native, NativeOptions, CreationContext
+    run_native,
+    App,
+    CreationContext,
+    NativeOptions,
 };
 
 const APP_NAME: &str = "toswa";
@@ -19,8 +23,7 @@ const BLACK: Color32 = Color32::from_rgb(0, 0, 0);
 //const CYAN: Color32 = Color32::from_rgb(0, 255, 255);
 //const RED: Color32 = Color32::from_rgb(255, 0, 0);
 
-#[derive(Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct MainWindowConfig {
     pub light_mode: bool,
 }
@@ -37,7 +40,7 @@ struct TextLineData {
     result: String,
 }
 
-impl MainWindow{
+impl MainWindow {
     pub fn init(mut self, cc: &CreationContext) -> Self {
         if let Some(storage) = cc.storage {
             self.config = eframe::get_value(storage, APP_NAME).unwrap_or_default();
@@ -72,7 +75,8 @@ impl MainWindow{
             }
             // render result
             ui.add_space(PADDING);
-            let result = Label::new(RichText::new(&a.result).text_style(eframe::egui::TextStyle::Button));
+            let result =
+                Label::new(RichText::new(&a.result).text_style(eframe::egui::TextStyle::Button));
             ui.add(result);
             // render seporator
             ui.add_space(PADDING);
@@ -92,7 +96,7 @@ impl MainWindow{
             //ui.add(PADDING);
             egui::menu::bar(ui, |ui| {
                 //logo
-                ui.with_layout(Layout::left_to_right(), |ui|{
+                ui.with_layout(Layout::left_to_right(), |ui| {
                     ui.add(Label::new(
                         RichText::new("🚀").text_style(egui::TextStyle::Heading),
                     ));
@@ -124,7 +128,8 @@ impl MainWindow{
                             } else {
                                 "🔆"
                             }
-                        }).text_style(egui::TextStyle::Body),
+                        })
+                        .text_style(egui::TextStyle::Body),
                     ));
                     if theme_btn.clicked() {
                         self.config.light_mode = !self.config.light_mode;
@@ -136,13 +141,12 @@ impl MainWindow{
     fn render_bottom_panel(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         TopBottomPanel::bottom("toswa_bottom_panel").show(ctx, |ui| {
             let response = ui.add(
-                egui::TextEdit::singleline(&mut self.main_entry_box).hint_text("Type something!")
+                egui::TextEdit::singleline(&mut self.main_entry_box).hint_text("Type something!"),
             );
             //if response.changed() {
             //    //..
             //}
             if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
-
                 self.text_lines.push(TextLineData {
                     command: self.main_entry_box.clone(),
                     result: "processing...".to_string(),
@@ -150,7 +154,7 @@ impl MainWindow{
                 self.main_entry_box.clear();
                 response.request_focus();
             }
-            if ui.input().key_pressed(egui::Key::I){
+            if ui.input().key_pressed(egui::Key::I) {
                 response.request_focus();
             }
         });
@@ -167,12 +171,10 @@ impl App for MainWindow {
         } else {
             ctx.set_visuals(Visuals::dark());
         }
-
         self.render_top_panel(ctx, frame);
         self.render_bottom_panel(ctx, frame);
-
         CentralPanel::default().show(ctx, |ui| {
-            ScrollArea::vertical().show(ui, |ui| {
+            ScrollArea::vertical().stick_to_bottom().show(ui, |ui| {
                 self.render_header(ui);
                 self.render_text_lines(ui);
             })
@@ -183,19 +185,26 @@ impl App for MainWindow {
 
 fn main() {
     let toswa = MainWindow::default();
+
+    //icon
+    let icon = image::load_from_memory(include_bytes!("../assets/icon.png"))
+        .expect("Failed to process icon data")
+        .to_rgba8();
+    let (icon_width, icon_height) = icon.dimensions();
+
     let win_options = NativeOptions {
         initial_window_size: Some(Vec2::new(540., 960.)),
         decorated: IS_DECORATED,
         icon_data: Some(eframe::IconData {
-            rgba: vec![0],
-            width: 1,
-            height: 1
+            rgba: icon.into_raw(),
+            width: icon_width,
+            height: icon_height,
         }),
         ..Default::default()
     };
     run_native(
         APP_NAME,
         win_options,
-        Box::new(|cc| Box::new(toswa.init(cc)))
+        Box::new(|cc| Box::new(toswa.init(cc))),
     );
 }
