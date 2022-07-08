@@ -138,7 +138,7 @@ impl MainWindow {
             });
         });
     }
-    fn render_bottom_panel(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+    fn render_bottom_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         TopBottomPanel::bottom("toswa_bottom_panel").show(ctx, |ui| {
             let response = ui.add(
                 egui::TextEdit::singleline(&mut self.main_entry_box).hint_text("Type something!"),
@@ -147,15 +147,39 @@ impl MainWindow {
             //    //..
             //}
             if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
-                self.text_lines.push(TextLineData {
-                    command: self.main_entry_box.clone(),
-                    result: "processing...".to_string(),
-                });
-                self.main_entry_box.clear();
+                if !self.main_entry_box.is_empty() {
+                    if self.main_entry_box.to_lowercase().eq("exit") {
+                        frame.quit();
+                        return;
+                    }
+                    self.text_lines.push(TextLineData {
+                        command: self.main_entry_box.clone(),
+                        result: "processing...".to_string(),
+                    });
+                    self.main_entry_box.clear();
+                }
                 response.request_focus();
             }
-            if ui.input().key_pressed(egui::Key::I) {
-                response.request_focus();
+            if !response.has_focus() {
+                if ui
+                    .input_mut()
+                    .consume_key(egui::Modifiers::NONE, egui::Key::I)
+                {
+                    response.request_focus();
+                }
+            }
+            //}
+            if ui.input_mut().consume_key(
+                egui::Modifiers {
+                    alt: false,
+                    command: true,
+                    shift: true,
+                    ..Default::default()
+                },
+                egui::Key::Q,
+            ) {
+                frame.quit();
+                //return
             }
         });
     }
