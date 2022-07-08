@@ -35,15 +35,28 @@ struct MainWindow {
     main_entry_box: String,
 }
 
+#[derive(Default)]
 struct TextLineData {
     command: String,
     result: String,
 }
 
+#[derive(Default)]
+struct FrameUpdates {
+    visual: bool,
+}
+
+impl FrameUpdates {
+    fn update(mut self, x: FrameUpdates) -> FrameUpdates {
+        self.visual = self.visual || x.visual;
+        self
+    }
+}
+
 impl MainWindow {
     pub fn init(mut self, cc: &CreationContext) -> Self {
         if let Some(storage) = cc.storage {
-            self.config = eframe::get_value(storage, APP_NAME).unwrap_or_default();
+            self.config = eframe::get_value(storage, "MainWindow").unwrap_or_default();
         }
         self.configure_fonts(&cc.egui_ctx);
         self
@@ -54,7 +67,6 @@ impl MainWindow {
             "MesloLGS".to_string(),
             FontData::from_static(include_bytes!("../assets/MesloLGS_NF_Regular.ttf")),
         );
-
         font_def
             .families
             .get_mut(&FontFamily::Proportional)
@@ -90,7 +102,8 @@ impl MainWindow {
         let sep = Separator::default().spacing(20.);
         ui.add(sep);
     }
-    fn render_top_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+    fn render_top_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) -> FrameUpdates {
+        let mut updates = FrameUpdates::default();
         // define a Top Bottom Panel widget
         TopBottomPanel::top("toswa_top_panel").show(ctx, |ui| {
             //ui.add(PADDING);
@@ -133,10 +146,12 @@ impl MainWindow {
                     ));
                     if theme_btn.clicked() {
                         self.config.light_mode = !self.config.light_mode;
+                        updates.visual = true;
                     }
                 });
             });
         });
+        updates
     }
     fn render_bottom_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         TopBottomPanel::bottom("toswa_bottom_panel").show(ctx, |ui| {
@@ -188,12 +203,13 @@ impl App for MainWindow {
         ////debugging tool
         //ctx.set_debug_on_hover(true);
         //draw window
+        let mut frame_update: FrameUpdates = FrameUpdates::default();
         if self.config.light_mode {
             ctx.set_visuals(Visuals::light());
         } else {
             ctx.set_visuals(Visuals::dark());
         }
-        self.render_top_panel(ctx, frame);
+        frame_update = frame_update.update(self.render_top_panel(ctx, frame));
         self.render_bottom_panel(ctx, frame);
         CentralPanel::default().show(ctx, |ui| {
             ScrollArea::vertical().stick_to_bottom().show(ui, |ui| {
@@ -201,13 +217,17 @@ impl App for MainWindow {
                 self.render_text_lines(ui);
             })
         });
-        ctx.request_repaint();
+        if frame_update.visual {
+            ctx.request_repaint();
+        }
+    }
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, "MainWindow", &self.config);
     }
 }
 
 fn main() {
     let toswa = MainWindow::default();
-
     //icon
     let icon = image::load_from_memory(include_bytes!("../assets/icon.png"))
         .expect("Failed to process icon data")

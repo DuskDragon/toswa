@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 image = "0.24.2"
+confy = "0.4.0"
 eframe = {version = "0.18.0", features = ["persistence"]}
 serde = {version = "1.0.138", features = ["derive"]}
