@@ -160,15 +160,13 @@ impl MainWindow {
                 }
                 response.request_focus();
             }
-            if !response.has_focus() {
-                if ui
+            if !response.has_focus()
+                && ui
                     .input_mut()
                     .consume_key(egui::Modifiers::NONE, egui::Key::I)
-                {
-                    response.request_focus();
-                }
+            {
+                response.request_focus();
             }
-            //}
             if ui.input_mut().consume_key(
                 egui::Modifiers {
                     alt: false,
