@@ -1,16 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use serde::{Deserialize, Serialize};
-//use std::sync::mpsc::{channel, sync_channel, Receiver, SyncSender};
+use std::sync::mpsc::{channel, Receiver};
+use std::thread::{self};
+use std::time::Duration;
 
 use eframe::{
     self,
-    egui::{
-        self, Button, CentralPanel, Color32, Context, FontData, FontDefinitions, FontFamily, Label,
-        Layout, RichText, ScrollArea, Separator, TopBottomPanel, Ui, Vec2, Visuals,
-    }, //, Spinner},
+    egui::{self, Color32, Ui, Visuals}, //, Spinner},
     run_native,
-    App,
     CreationContext,
     NativeOptions,
 };
@@ -35,22 +33,10 @@ struct MainWindow {
     main_entry_box: String,
 }
 
-#[derive(Default)]
 struct TextLineData {
     command: String,
     result: String,
-}
-
-#[derive(Default)]
-struct FrameUpdates {
-    visual: bool,
-}
-
-impl FrameUpdates {
-    fn update(mut self, x: FrameUpdates) -> FrameUpdates {
-        self.visual = self.visual || x.visual;
-        self
-    }
+    rx_channel: Option<Receiver<String>>,
 }
 
 impl MainWindow {
@@ -61,22 +47,22 @@ impl MainWindow {
         self.configure_fonts(&cc.egui_ctx);
         self
     }
-    pub fn configure_fonts(&self, ctx: &Context) {
-        let mut font_def = FontDefinitions::default();
+    pub fn configure_fonts(&self, ctx: &egui::Context) {
+        let mut font_def = egui::FontDefinitions::default();
         font_def.font_data.insert(
             "MesloLGS".to_string(),
-            FontData::from_static(include_bytes!("../assets/MesloLGS_NF_Regular.ttf")),
+            egui::FontData::from_static(include_bytes!("../assets/MesloLGS_NF_Regular.ttf")),
         );
         font_def
             .families
-            .get_mut(&FontFamily::Proportional)
+            .get_mut(&egui::FontFamily::Proportional)
             .unwrap()
             .insert(0, "MesloLGS".to_string());
 
         ctx.set_fonts(font_def);
     }
-    pub fn render_text_lines(&self, ui: &mut eframe::egui::Ui) {
-        for a in &self.text_lines {
+    pub fn render_text_lines(&mut self, ui: &mut eframe::egui::Ui) {
+        for a in self.text_lines.iter() {
             ui.add_space(PADDING);
             // render command
             let command = format!("$ {}", a.command);
@@ -87,55 +73,56 @@ impl MainWindow {
             }
             // render result
             ui.add_space(PADDING);
-            let result =
-                Label::new(RichText::new(&a.result).text_style(eframe::egui::TextStyle::Button));
+            let result = egui::Label::new(
+                egui::RichText::new(a.result.as_str()).text_style(egui::TextStyle::Button),
+            );
             ui.add(result);
             // render seporator
             ui.add_space(PADDING);
-            ui.add(Separator::default());
+            ui.add(egui::Separator::default());
         }
     }
     fn render_header(&mut self, ui: &mut Ui) {
         ui.vertical_centered(|ui| {
             ui.heading(APP_NAME);
         });
-        let sep = Separator::default().spacing(20.);
+        let sep = egui::Separator::default().spacing(20.);
         ui.add(sep);
     }
-    fn render_top_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) -> FrameUpdates {
-        let mut updates = FrameUpdates::default();
+    fn render_top_panel(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // define a Top Bottom Panel widget
-        TopBottomPanel::top("toswa_top_panel").show(ctx, |ui| {
+        egui::TopBottomPanel::top("toswa_top_panel").show(ctx, |ui| {
             //ui.add(PADDING);
             egui::menu::bar(ui, |ui| {
                 //logo
-                ui.with_layout(Layout::left_to_right(), |ui| {
-                    ui.add(Label::new(
-                        RichText::new("🚀").text_style(egui::TextStyle::Heading),
+                ui.with_layout(egui::Layout::left_to_right(), |ui| {
+                    ui.add(egui::Label::new(
+                        egui::RichText::new("🚀").text_style(egui::TextStyle::Heading),
                     ));
-                    let file_btn = ui.add(Button::new(
-                        RichText::new("File(add garbage)").text_style(egui::TextStyle::Body),
+                    let file_btn = ui.add(egui::Button::new(
+                        egui::RichText::new("File(add garbage)").text_style(egui::TextStyle::Body),
                     ));
                     if file_btn.clicked() {
                         self.text_lines.push(TextLineData {
                             command: "garbage in".to_string(),
                             result: "garbage out".to_string(),
+                            rx_channel: None,
                         });
                     }
                 });
                 // controls
-                ui.with_layout(Layout::right_to_left(), |ui| {
+                ui.with_layout(egui::Layout::right_to_left(), |ui| {
                     if !IS_DECORATED {
-                        let close_btn = ui.add(Button::new(
-                            RichText::new("❌").text_style(egui::TextStyle::Body),
+                        let close_btn = ui.add(egui::Button::new(
+                            egui::RichText::new("❌").text_style(egui::TextStyle::Body),
                         ));
                         if close_btn.clicked() {
                             frame.quit();
                         }
                     }
                     // theme button
-                    let theme_btn = ui.add(Button::new(
-                        RichText::new({
+                    let theme_btn = ui.add(egui::Button::new(
+                        egui::RichText::new({
                             if self.config.light_mode {
                                 "🌙"
                             } else {
@@ -146,15 +133,13 @@ impl MainWindow {
                     ));
                     if theme_btn.clicked() {
                         self.config.light_mode = !self.config.light_mode;
-                        updates.visual = true;
                     }
                 });
             });
         });
-        updates
     }
-    fn render_bottom_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
-        TopBottomPanel::bottom("toswa_bottom_panel").show(ctx, |ui| {
+    fn render_bottom_panel(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        egui::TopBottomPanel::bottom("toswa_bottom_panel").show(ctx, |ui| {
             let response = ui.add(
                 egui::TextEdit::singleline(&mut self.main_entry_box).hint_text("Type something!"),
             );
@@ -167,9 +152,12 @@ impl MainWindow {
                         frame.quit();
                         return;
                     }
+                    let command = self.main_entry_box.clone();
+                    let rx_channel = self.dispatch_comamnd(self.main_entry_box.clone(), ctx);
                     self.text_lines.push(TextLineData {
-                        command: self.main_entry_box.clone(),
+                        command,
                         result: "processing...".to_string(),
+                        rx_channel,
                     });
                     self.main_entry_box.clear();
                 }
@@ -196,30 +184,62 @@ impl MainWindow {
             }
         });
     }
+    fn dispatch_comamnd(
+        &mut self,
+        command: String,
+        ctx: &egui::Context,
+    ) -> Option<Receiver<String>> {
+        let ctx_clone = ctx.clone();
+        let (result_tx, result_rx) = channel();
+        thread::spawn(move || {
+            if let Err(e) = result_tx.send(process_command(command)) {
+                eprintln!("Error sending command result: {}", e)
+            }
+            ctx_clone.request_repaint();
+        });
+        Some(result_rx)
+    }
+    fn poll_open_requests(&mut self) {
+        for a in self.text_lines.iter_mut() {
+            if let Some(rx_channel) = &a.rx_channel {
+                match rx_channel.try_recv() {
+                    Ok(command_result) => {
+                        a.rx_channel = None;
+                        a.result = command_result;
+                    }
+                    Err(_) => continue,
+                }
+            }
+        }
+    }
 }
 
-impl App for MainWindow {
+fn process_command(command: String) -> String {
+    thread::sleep(Duration::from_secs(1));
+    format!("processed: {}", command)
+}
+
+impl eframe::App for MainWindow {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
         ////debugging tool
         //ctx.set_debug_on_hover(true);
         //draw window
-        let mut frame_update: FrameUpdates = FrameUpdates::default();
+        self.poll_open_requests();
         if self.config.light_mode {
             ctx.set_visuals(Visuals::light());
         } else {
             ctx.set_visuals(Visuals::dark());
         }
-        frame_update = frame_update.update(self.render_top_panel(ctx, frame));
+        self.render_top_panel(ctx, frame);
         self.render_bottom_panel(ctx, frame);
-        CentralPanel::default().show(ctx, |ui| {
-            ScrollArea::vertical().stick_to_bottom().show(ui, |ui| {
-                self.render_header(ui);
-                self.render_text_lines(ui);
-            })
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical()
+                .stick_to_bottom()
+                .show(ui, |ui| {
+                    self.render_header(ui);
+                    self.render_text_lines(ui);
+                })
         });
-        if frame_update.visual {
-            ctx.request_repaint();
-        }
     }
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, "MainWindow", &self.config);
@@ -235,7 +255,7 @@ fn main() {
     let (icon_width, icon_height) = icon.dimensions();
 
     let win_options = NativeOptions {
-        initial_window_size: Some(Vec2::new(540., 960.)),
+        initial_window_size: Some(egui::Vec2::new(540., 960.)),
         decorated: IS_DECORATED,
         icon_data: Some(eframe::IconData {
             rgba: icon.into_raw(),
