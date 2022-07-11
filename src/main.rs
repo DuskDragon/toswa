@@ -3,7 +3,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::mpsc::{channel, Receiver};
 use std::thread::{self};
-use std::time::Duration;
 
 use eframe::{
     self,
@@ -22,13 +21,13 @@ const BLACK: Color32 = Color32::from_rgb(0, 0, 0);
 //const RED: Color32 = Color32::from_rgb(255, 0, 0);
 
 #[derive(Serialize, Deserialize, Default)]
-pub struct MainWindowConfig {
+pub struct TextCommandWindowConfig {
     pub light_mode: bool,
 }
 
 #[derive(Default)]
-struct MainWindow {
-    pub config: MainWindowConfig,
+struct TextCommandWindow {
+    pub config: TextCommandWindowConfig,
     text_lines: Vec<TextLineData>,
     main_entry_box: String,
 }
@@ -39,10 +38,10 @@ struct TextLineData {
     rx_channel: Option<Receiver<String>>,
 }
 
-impl MainWindow {
+impl TextCommandWindow {
     pub fn init(mut self, cc: &CreationContext) -> Self {
         if let Some(storage) = cc.storage {
-            self.config = eframe::get_value(storage, "MainWindow").unwrap_or_default();
+            self.config = eframe::get_value(storage, "TextCommandWindow").unwrap_or_default();
         }
         self.configure_fonts(&cc.egui_ctx);
         self
@@ -193,7 +192,7 @@ impl MainWindow {
         let (result_tx, result_rx) = channel();
         thread::spawn(move || {
             if let Err(e) = result_tx.send(process_command(command)) {
-                eprintln!("Error sending command result: {}", e)
+                eprintln!("Error sending command result: {}", e);
             }
             ctx_clone.request_repaint();
         });
@@ -215,11 +214,10 @@ impl MainWindow {
 }
 
 fn process_command(command: String) -> String {
-    thread::sleep(Duration::from_secs(1));
     format!("processed: {}", command)
 }
 
-impl eframe::App for MainWindow {
+impl eframe::App for TextCommandWindow {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
         ////debugging tool
         //ctx.set_debug_on_hover(true);
@@ -242,12 +240,12 @@ impl eframe::App for MainWindow {
         });
     }
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, "MainWindow", &self.config);
+        eframe::set_value(storage, "TextCommandWindow", &self.config);
     }
 }
 
 fn main() {
-    let toswa = MainWindow::default();
+    let toswa = TextCommandWindow::default();
     //icon
     let icon = image::load_from_memory(include_bytes!("../assets/icon.png"))
         .expect("Failed to process icon data")
